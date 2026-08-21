@@ -67,3 +67,19 @@ export async function updateOrderStatusApi(token, orderId, statusData) {
     }
     return response.json();
 }
+
+export async function rescheduleOrderApi(token, orderId, rescheduleData) {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/reschedule`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(rescheduleData),
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to reschedule order');
+    }
+    return response.json();
+}

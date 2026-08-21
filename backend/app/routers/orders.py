@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Order, OrderTrackingHistory, Notification, OrderStatus, User, UserRole, Area
-from app.schemas import OrderCreate, OrderResponse, RatePreviewRequest, OrderAssignRequest, OrderStatusUpdate
+from app.schemas import OrderCreate, OrderResponse, RatePreviewRequest, OrderAssignRequest, OrderStatusUpdate, OrderRescheduleRequest
 from app.auth import get_current_user, require_roles
 from app.services.rate_engine import compute_rate_preview
 from app.services.assignment_engine import find_nearest_available_agent
@@ -281,6 +281,63 @@ def update_order_status(
         status="SENT",
         subject=f"Order Status Update: {order.tracking_number} is now {target_status.value}",
         payload=f"Order {order.tracking_number} status changed to {target_status.value}. Notes: {notes_str}"
+    )
+    db.add(cust_notif)
+
+    db.commit()
+    db.refresh(order)
+    return get_order_by_id(order_id, db, current_user)
+
+MAX_RESCHEDULE_ATTEMPTS = 3
+
+@router.put("/{order_id}/reschedule", response_model=OrderResponse)
+def reschedule_order(
+    order_id: int,
+    reschedule_data: OrderRescheduleRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    # Only FAILED orders can be rescheduled
+    if order.current_status != OrderStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Only FAILED orders can be rescheduled. Current status: {order.current_status.value}"
+        )
+
+    # Enforce max reschedule limit
+    if order.reschedule_count >= MAX_RESCHEDULE_ATTEMPTS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Maximum reschedule limit ({MAX_RESCHEDULE_ATTEMPTS}) reached for this order."
+        )
+
+    prev_status = order.current_status.value
+    order.current_status = OrderStatus.RESCHEDULED
+    order.reschedule_count += 1
+    order.scheduled_delivery_date = reschedule_data.scheduled_delivery_date
+
+    notes_str = reschedule_data.notes or f"Order rescheduled for {reschedule_data.scheduled_delivery_date.strftime('%Y-%m-%d')}. Attempt {order.reschedule_count}/{MAX_RESCHEDULE_ATTEMPTS}."
+    history_log = OrderTrackingHistory(
+        order_id=order.id,
+        previous_status=prev_status,
+        new_status=OrderStatus.RESCHEDULED.value,
+        actor_id=current_user.id,
+        actor_role=current_user.role.value,
+        notes=notes_str
+    )
+    db.add(history_log)
+
+    cust_notif = Notification(
+        order_id=order.id,
+        recipient=order.customer.email if order.customer else "customer@delivery.com",
+        channel="EMAIL",
+        status="SENT",
+        subject=f"Order Rescheduled: {order.tracking_number}",
+        payload=f"Your order {order.tracking_number} has been rescheduled for {reschedule_data.scheduled_delivery_date.strftime('%Y-%m-%d')}. Attempt {order.reschedule_count}/{MAX_RESCHEDULE_ATTEMPTS}."
     )
     db.add(cust_notif)
 

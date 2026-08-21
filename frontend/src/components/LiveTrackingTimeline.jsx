@@ -1,16 +1,21 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { updateOrderStatusApi } from '../api/ordersApi';
-import { CheckCircle2, Clock, Truck, PackageCheck, AlertTriangle, ShieldCheck, ChevronRight } from 'lucide-react';
+import { RescheduleModal } from './RescheduleModal';
+import { CheckCircle2, Clock, Truck, PackageCheck, AlertTriangle, ShieldCheck, ChevronRight, CalendarClock, RefreshCcw } from 'lucide-react';
 
 export function LiveTrackingTimeline({ order, onStatusUpdated }) {
     const { token, user } = useAuth();
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [customNotes, setCustomNotes] = useState('');
+    const [showReschedule, setShowReschedule] = useState(false);
 
     const canAdvanceStatus =
         user.role === 'ADMIN' || (user.role === 'DELIVERY_AGENT' && order.agent_id === user.id);
+
+    const canReschedule =
+        order.current_status === 'FAILED' && (user.role === 'ADMIN' || user.role === 'CUSTOMER');
 
     const handleStatusTransition = async (nextStatus, defaultNote) => {
         setSubmitting(true);
@@ -45,6 +50,8 @@ export function LiveTrackingTimeline({ order, onStatusUpdated }) {
                 return <CheckCircle2 className="h-4 w-4 text-emerald-600" />;
             case 'FAILED':
                 return <AlertTriangle className="h-4 w-4 text-rose-600" />;
+            case 'RESCHEDULED':
+                return <RefreshCcw className="h-4 w-4 text-orange-600" />;
             default:
                 return <Clock className="h-4 w-4 text-gray-500" />;
         }
@@ -68,7 +75,6 @@ export function LiveTrackingTimeline({ order, onStatusUpdated }) {
             <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
                 {(order.tracking_history || []).map((history, idx) => (
                     <div key={history.id || idx} className="relative flex items-start space-x-3 group">
-                        {/* Step Node */}
                         <div className="absolute -left-6 mt-0.5 p-1 bg-white border-2 border-indigo-600 rounded-full shadow-sm">
                             {getStepIcon(history.new_status)}
                         </div>
@@ -93,8 +99,27 @@ export function LiveTrackingTimeline({ order, onStatusUpdated }) {
                 ))}
             </div>
 
+            {/* Reschedule Button for FAILED orders */}
+            {canReschedule && (
+                <div className="pt-3 border-t border-gray-200">
+                    <div className="p-4 bg-gradient-to-br from-rose-50 to-orange-50 rounded-2xl border border-rose-100 space-y-3">
+                        <p className="text-xs text-gray-700">
+                            Delivery attempt failed. You have <strong>{3 - (order.reschedule_count || 0)}</strong> reschedule attempt{3 - (order.reschedule_count || 0) !== 1 ? 's' : ''} remaining.
+                        </p>
+                        <button
+                            onClick={() => setShowReschedule(true)}
+                            disabled={(order.reschedule_count || 0) >= 3}
+                            className="w-full py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-xs shadow-sm transition-colors flex items-center justify-center space-x-2 disabled:opacity-50"
+                        >
+                            <CalendarClock className="h-4 w-4" />
+                            <span>Reschedule Delivery</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* Agent & Admin Control Panel for Status Advancement */}
-            {canAdvanceStatus && order.current_status !== 'DELIVERED' && (
+            {canAdvanceStatus && order.current_status !== 'DELIVERED' && order.current_status !== 'FAILED' && (
                 <div className="pt-3 border-t border-gray-200 space-y-3">
                     <label className="block text-xs font-bold text-gray-700">Update Delivery Status</label>
                     <input
@@ -159,9 +184,27 @@ export function LiveTrackingTimeline({ order, onStatusUpdated }) {
                                 </button>
                             </>
                         )}
+
+                        {order.current_status === 'RESCHEDULED' && (
+                            <button
+                                onClick={() => handleStatusTransition('OUT_FOR_DELIVERY', 'Re-attempting delivery for rescheduled order.')}
+                                disabled={submitting}
+                                className="px-3.5 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-xl font-bold text-xs shadow-xs transition-colors flex items-center space-x-1 disabled:opacity-50"
+                            >
+                                <span>Re-attempt Delivery</span>
+                                <ChevronRight className="h-3.5 w-3.5" />
+                            </button>
+                        )}
                     </div>
                 </div>
             )}
+
+            <RescheduleModal
+                isOpen={showReschedule}
+                onClose={() => setShowReschedule(false)}
+                order={order}
+                onRescheduled={onStatusUpdated}
+            />
         </div>
     );
 }
