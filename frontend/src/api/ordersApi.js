@@ -51,3 +51,19 @@ export async function assignAgentApi(token, orderId, assignData) {
     }
     return response.json();
 }
+
+export async function updateOrderStatusApi(token, orderId, statusData) {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/status`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(statusData),
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to update order status');
+    }
+    return response.json();
+}

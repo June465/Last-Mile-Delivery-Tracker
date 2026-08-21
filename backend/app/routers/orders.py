@@ -1,17 +1,28 @@
 import datetime
 import random
 import string
-from typing import List, Optional
+from typing import List, Optional, Dict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Order, OrderTrackingHistory, Notification, OrderStatus, User, UserRole, Area
-from app.schemas import OrderCreate, OrderResponse, RatePreviewRequest, OrderAssignRequest
+from app.schemas import OrderCreate, OrderResponse, RatePreviewRequest, OrderAssignRequest, OrderStatusUpdate
 from app.auth import get_current_user, require_roles
 from app.services.rate_engine import compute_rate_preview
 from app.services.assignment_engine import find_nearest_available_agent
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
+
+ALLOWED_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
+    OrderStatus.CREATED: [OrderStatus.AGENT_ASSIGNED],
+    OrderStatus.AGENT_ASSIGNED: [OrderStatus.PICKED_UP, OrderStatus.CREATED],
+    OrderStatus.PICKED_UP: [OrderStatus.IN_TRANSIT],
+    OrderStatus.IN_TRANSIT: [OrderStatus.OUT_FOR_DELIVERY],
+    OrderStatus.OUT_FOR_DELIVERY: [OrderStatus.DELIVERED, OrderStatus.FAILED],
+    OrderStatus.FAILED: [OrderStatus.RESCHEDULED],
+    OrderStatus.RESCHEDULED: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.AGENT_ASSIGNED],
+    OrderStatus.DELIVERED: []
+}
 
 def generate_tracking_number() -> str:
     date_str = datetime.datetime.utcnow().strftime("%Y%m%d")
@@ -150,7 +161,6 @@ def assign_agent_to_order(
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-    # Authorization: Admin or Delivery Agent self-assigning
     if current_user.role not in [UserRole.ADMIN, UserRole.DELIVERY_AGENT]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admin or Delivery Agents can assign orders")
 
@@ -186,7 +196,6 @@ def assign_agent_to_order(
     order.agent_id = assigned_agent.id
     order.current_status = OrderStatus.AGENT_ASSIGNED
 
-    # Immutable Audit Log
     history_log = OrderTrackingHistory(
         order_id=order.id,
         previous_status=prev_status,
@@ -197,7 +206,6 @@ def assign_agent_to_order(
     )
     db.add(history_log)
 
-    # Notifications
     cust_notif = Notification(
         order_id=order.id,
         recipient=order.customer.email if order.customer else "customer@delivery.com",
@@ -216,6 +224,65 @@ def assign_agent_to_order(
     )
     db.add(cust_notif)
     db.add(agent_notif)
+
+    db.commit()
+    db.refresh(order)
+    return get_order_by_id(order_id, db, current_user)
+
+@router.put("/{order_id}/status", response_model=OrderResponse)
+def update_order_status(
+    order_id: int,
+    status_update: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    # Authorization Check: Admin or Assigned Delivery Agent
+    if current_user.role == UserRole.CUSTOMER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customers cannot directly change order status")
+    if current_user.role == UserRole.DELIVERY_AGENT and order.agent_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delivery Agent not assigned to this order")
+
+    curr_status = order.current_status
+    target_status = status_update.new_status
+
+    # Validate state machine transition
+    allowed_next = ALLOWED_TRANSITIONS.get(curr_status, [])
+    if target_status not in allowed_next:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid status transition from {curr_status.value} to {target_status.value}. Allowed next states: {[s.value for s in allowed_next]}"
+        )
+
+    # Perform status update
+    prev_status_str = curr_status.value
+    order.current_status = target_status
+
+    # Immutable Audit Log
+    notes_str = status_update.notes or f"Order status updated from {prev_status_str} to {target_status.value}."
+    history_log = OrderTrackingHistory(
+        order_id=order.id,
+        previous_status=prev_status_str,
+        new_status=target_status.value,
+        actor_id=current_user.id,
+        actor_role=current_user.role.value,
+        notes=notes_str
+    )
+    db.add(history_log)
+
+    # Trigger Notification
+    cust_notif = Notification(
+        order_id=order.id,
+        recipient=order.customer.email if order.customer else "customer@delivery.com",
+        channel="EMAIL",
+        status="SENT",
+        subject=f"Order Status Update: {order.tracking_number} is now {target_status.value}",
+        payload=f"Order {order.tracking_number} status changed to {target_status.value}. Notes: {notes_str}"
+    )
+    db.add(cust_notif)
 
     db.commit()
     db.refresh(order)
