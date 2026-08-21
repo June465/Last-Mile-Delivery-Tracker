@@ -1,7 +1,12 @@
-import React from 'react';
-import { Package, Clock, MapPin, Tag, Truck, CheckCircle2, AlertTriangle, ShieldAlert } from 'lucide-react';
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { AgentAssignmentModal } from './AgentAssignmentModal';
+import { Package, MapPin, UserCheck, Compass } from 'lucide-react';
 
 export function OrderList({ orders, loading, onRefresh }) {
+    const { user } = useAuth();
+    const [selectedOrderForAssign, setSelectedOrderForAssign] = useState(null);
+
     const getStatusBadge = (status) => {
         switch (status) {
             case 'CREATED':
@@ -100,18 +105,34 @@ export function OrderList({ orders, loading, onRefresh }) {
 
                         <div className="mt-4 pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between text-xs text-gray-600 gap-2">
                             <div className="flex items-center space-x-4">
-                                <span>Weight: <strong className="text-gray-900">{order.billing_weight} kg</strong> (Billing)</span>
-                                <span>Dimensions: <strong className="text-gray-900">{order.dimensions_l}×{order.dimensions_b}×{order.dimensions_h} cm</strong></span>
+                                <span>Agent: {order.agent ? <strong className="text-gray-900">{order.agent.name}</strong> : <span className="text-amber-600 font-bold">Unassigned</span>}</span>
+                                <span>Billing Weight: <strong className="text-gray-900">{order.billing_weight} kg</strong></span>
                             </div>
 
-                            <div className="flex items-center space-x-2">
-                                <span className="text-gray-400">Total Charge:</span>
+                            <div className="flex items-center space-x-3">
+                                {order.current_status === 'CREATED' && (user.role === 'ADMIN' || user.role === 'DELIVERY_AGENT') && (
+                                    <button
+                                        onClick={() => setSelectedOrderForAssign(order)}
+                                        className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs shadow-sm transition-colors flex items-center space-x-1"
+                                    >
+                                        <UserCheck className="h-3.5 w-3.5" />
+                                        <span>Assign Agent</span>
+                                    </button>
+                                )}
+
                                 <span className="text-base font-black text-gray-900">₹{order.total_charge}</span>
                             </div>
                         </div>
                     </div>
                 ))}
             </div>
+
+            <AgentAssignmentModal
+                isOpen={!!selectedOrderForAssign}
+                onClose={() => setSelectedOrderForAssign(null)}
+                order={selectedOrderForAssign}
+                onAssigned={onRefresh}
+            />
         </div>
     );
 }

@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
 from app.models import Order, OrderTrackingHistory, Notification, OrderStatus, User, UserRole, Area
-from app.schemas import OrderCreate, OrderResponse, RatePreviewRequest
-from app.auth import get_current_user
+from app.schemas import OrderCreate, OrderResponse, RatePreviewRequest, OrderAssignRequest
+from app.auth import get_current_user, require_roles
 from app.services.rate_engine import compute_rate_preview
+from app.services.assignment_engine import find_nearest_available_agent
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -23,7 +24,6 @@ def create_order(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Customer ID resolution: Admin can specify, Customer defaults to self
     if current_user.role == UserRole.CUSTOMER or order_data.customer_id is None:
         customer_id = current_user.id
     else:
@@ -32,7 +32,6 @@ def create_order(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Specified Customer ID not found")
         customer_id = customer.id
 
-    # Compute rate breakdown using Rate Engine
     rate_request = RatePreviewRequest(
         pickup_area_id=order_data.pickup_area_id,
         drop_area_id=order_data.drop_area_id,
@@ -44,7 +43,6 @@ def create_order(
         payment_type=order_data.payment_type
     )
     rate_calc = compute_rate_preview(db, rate_request)
-
     tracking_num = generate_tracking_number()
 
     new_order = Order(
@@ -73,7 +71,6 @@ def create_order(
     db.commit()
     db.refresh(new_order)
 
-    # Initial Immutable Audit Log
     history_log = OrderTrackingHistory(
         order_id=new_order.id,
         previous_status=None,
@@ -84,7 +81,6 @@ def create_order(
     )
     db.add(history_log)
 
-    # Trigger Initial Notification
     cust_user = db.query(User).filter(User.id == customer_id).first()
     notif = Notification(
         order_id=new_order.id,
@@ -92,7 +88,7 @@ def create_order(
         channel="EMAIL",
         status="SENT",
         subject=f"Order Placed: {tracking_num}",
-        payload=f"Your order {tracking_num} has been successfully created with status CREATED. Total estimate: ₹{rate_calc.total_charge}"
+        payload=f"Your order {tracking_num} has been created with status CREATED. Total: ₹{rate_calc.total_charge}"
     )
     db.add(notif)
 
@@ -142,3 +138,85 @@ def get_order_by_id(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to view this order")
 
     return order
+
+@router.post("/{order_id}/assign", response_model=OrderResponse)
+def assign_agent_to_order(
+    order_id: int,
+    assign_data: OrderAssignRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+
+    # Authorization: Admin or Delivery Agent self-assigning
+    if current_user.role not in [UserRole.ADMIN, UserRole.DELIVERY_AGENT]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admin or Delivery Agents can assign orders")
+
+    assigned_agent: Optional[User] = None
+
+    if assign_data.auto_assign:
+        assigned_agent = find_nearest_available_agent(db, order)
+        if not assigned_agent:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No available delivery agent found in pickup zone or city."
+            )
+    elif assign_data.agent_id:
+        assigned_agent = db.query(User).filter(
+            User.id == assign_data.agent_id,
+            User.role == UserRole.DELIVERY_AGENT,
+            User.is_active == True
+        ).first()
+        if not assigned_agent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Specified active Delivery Agent not found"
+            )
+    elif current_user.role == UserRole.DELIVERY_AGENT:
+        assigned_agent = current_user
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Must specify agent_id or set auto_assign to true"
+        )
+
+    prev_status = order.current_status.value
+    order.agent_id = assigned_agent.id
+    order.current_status = OrderStatus.AGENT_ASSIGNED
+
+    # Immutable Audit Log
+    history_log = OrderTrackingHistory(
+        order_id=order.id,
+        previous_status=prev_status,
+        new_status=OrderStatus.AGENT_ASSIGNED.value,
+        actor_id=current_user.id,
+        actor_role=current_user.role.value,
+        notes=f"Assigned to Delivery Agent '{assigned_agent.name}' (ID: {assigned_agent.id})"
+    )
+    db.add(history_log)
+
+    # Notifications
+    cust_notif = Notification(
+        order_id=order.id,
+        recipient=order.customer.email if order.customer else "customer@delivery.com",
+        channel="EMAIL",
+        status="SENT",
+        subject=f"Agent Assigned: {order.tracking_number}",
+        payload=f"Agent {assigned_agent.name} ({assigned_agent.phone or 'N/A'}) has been assigned to your order."
+    )
+    agent_notif = Notification(
+        order_id=order.id,
+        recipient=assigned_agent.email,
+        channel="SMS",
+        status="SENT",
+        subject=f"New Delivery Order Assigned: {order.tracking_number}",
+        payload=f"You have been assigned order {order.tracking_number}. Pickup address: {order.pickup_address}"
+    )
+    db.add(cust_notif)
+    db.add(agent_notif)
+
+    db.commit()
+    db.refresh(order)
+    return get_order_by_id(order_id, db, current_user)

@@ -35,3 +35,19 @@ export async function fetchOrderByIdApi(token, orderId) {
     if (!response.ok) throw new Error('Failed to fetch order details');
     return response.json();
 }
+
+export async function assignAgentApi(token, orderId, assignData) {
+    const response = await fetch(`${API_BASE_URL}/orders/${orderId}/assign`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(assignData),
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to assign agent');
+    }
+    return response.json();
+}

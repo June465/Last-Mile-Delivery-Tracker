@@ -143,6 +143,10 @@ class OrderStatusUpdate(BaseModel):
     new_status: OrderStatus
     notes: Optional[str] = None
 
+class OrderAssignRequest(BaseModel):
+    agent_id: Optional[int] = None
+    auto_assign: bool = False
+
 class OrderRescheduleRequest(BaseModel):
     scheduled_delivery_date: datetime.datetime
     notes: Optional[str] = None
