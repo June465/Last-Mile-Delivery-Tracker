@@ -1,0 +1,53 @@
+.login-page-container {
+    min-height: 100vh;
+    background-color: var(--bg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
+.login-heading {
+    color: var(--text-h) !important;
+}
+
+.login-subheading {
+    color: var(--text-muted) !important;
+}
+
+.login-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.login-input {
+    color: var(--text-h) !important;
+    background-color: var(--input-bg) !important;
+    border: 1px solid var(--border) !important;
+}
+
+.login-input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px var(--primary-light) !important;
+    outline: none !important;
+}
+
+.demo-login-btn-admin {
+    background-color: rgba(147, 51, 234, 0.2);
+    border: 1px solid rgba(168, 85, 247, 0.5);
+    color: #d8b4fe !important;
+}
+
+.demo-login-btn-agent {
+    background-color: rgba(37, 99, 235, 0.2);
+    border: 1px solid rgba(59, 130, 246, 0.5);
+    color: #93c5fd !important;
+}
+
+.demo-login-btn-customer {
+    background-color: rgba(5, 150, 105, 0.2);
+    border: 1px solid rgba(16, 185, 129, 0.5);
+    color: #6ee7b7 !important;
+}

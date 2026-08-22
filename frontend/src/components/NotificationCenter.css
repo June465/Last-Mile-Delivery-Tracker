@@ -1,0 +1,64 @@
+.notification-center-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 9998;
+}
+
+.notification-center-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 24rem;
+    height: 100vh;
+    background-color: var(--card-bg);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+}
+
+.notification-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--glass-bg);
+}
+
+.notification-title {
+    color: var(--text-h) !important;
+    font-weight: 700;
+}
+
+.notification-item {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.2s ease;
+}
+
+.notification-item:hover {
+    background-color: var(--code-bg);
+}
+
+.notification-badge-email {
+    background-color: rgba(59, 130, 246, 0.2);
+    color: #60a5fa !important;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.notification-badge-sms {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: #34d399 !important;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}

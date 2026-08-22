@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loginApi, registerApi, getMeApi } from '../api/authApi';
+import './AuthContext.css';
+import { loginApi, registerApi, getMeApi, updateProfileApi } from '../api/authApi';
 
 const AuthContext = createContext(null);
 
@@ -49,6 +50,18 @@ export function AuthProvider({ children }) {
         }
     };
 
+    const updateUser = async (profileData) => {
+        setError('');
+        try {
+            const updatedUser = await updateProfileApi(token, profileData);
+            setUser(updatedUser);
+            return updatedUser;
+        } catch (err) {
+            setError(err.message);
+            throw err;
+        }
+    };
+
     const logout = () => {
         localStorage.removeItem('token');
         setToken('');
@@ -56,7 +69,7 @@ export function AuthProvider({ children }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, loading, error, login, register, logout }}>
+        <AuthContext.Provider value={{ user, token, loading, error, login, register, updateUser, logout }}>
             {children}
         </AuthContext.Provider>
     );
@@ -65,3 +78,4 @@ export function AuthProvider({ children }) {
 export function useAuth() {
     return useContext(AuthContext);
 }
+

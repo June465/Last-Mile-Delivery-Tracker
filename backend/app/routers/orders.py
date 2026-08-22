@@ -92,16 +92,47 @@ def create_order(
     )
     db.add(history_log)
 
+    # 1. Customer Email & SMS Notifications
     cust_user = db.query(User).filter(User.id == customer_id).first()
-    notif = Notification(
+    cust_email = cust_user.email if cust_user else "customer@delivery.com"
+    cust_phone = (cust_user.phone if cust_user and cust_user.phone else cust_email)
+
+    db.add(Notification(
         order_id=new_order.id,
-        recipient=cust_user.email if cust_user else "customer@delivery.com",
+        recipient=cust_email,
         channel="EMAIL",
         status="SENT",
         subject=f"Order Placed: {tracking_num}",
         payload=f"Your order {tracking_num} has been created with status CREATED. Total: ₹{rate_calc.total_charge}"
-    )
-    db.add(notif)
+    ))
+    db.add(Notification(
+        order_id=new_order.id,
+        recipient=cust_phone,
+        channel="SMS",
+        status="SENT",
+        subject=f"Order Placed: {tracking_num}",
+        payload=f"Order {tracking_num} placed successfully. Total: ₹{rate_calc.total_charge}"
+    ))
+
+    # 2. Admin Email & SMS Notifications on Order Placing
+    admins = db.query(User).filter(User.role == UserRole.ADMIN, User.is_active == True).all()
+    for admin in admins:
+        db.add(Notification(
+            order_id=new_order.id,
+            recipient=admin.email,
+            channel="EMAIL",
+            status="SENT",
+            subject=f"New Order Alert: {tracking_num}",
+            payload=f"New order {tracking_num} placed by {cust_user.name if cust_user else 'Customer'}. Total: ₹{rate_calc.total_charge}"
+        ))
+        db.add(Notification(
+            order_id=new_order.id,
+            recipient=admin.phone or admin.email,
+            channel="SMS",
+            status="SENT",
+            subject=f"New Order Alert: {tracking_num}",
+            payload=f"New order {tracking_num} placed in pool."
+        ))
 
     db.commit()
     db.refresh(new_order)
@@ -206,24 +237,44 @@ def assign_agent_to_order(
     )
     db.add(history_log)
 
-    cust_notif = Notification(
+    # Customer Email & SMS Notifications on Assignment
+    cust_recipient_email = order.customer.email if order.customer else "customer@delivery.com"
+    cust_recipient_phone = (order.customer.phone if order.customer and order.customer.phone else cust_recipient_email)
+
+    db.add(Notification(
         order_id=order.id,
-        recipient=order.customer.email if order.customer else "customer@delivery.com",
+        recipient=cust_recipient_email,
         channel="EMAIL",
         status="SENT",
         subject=f"Agent Assigned: {order.tracking_number}",
         payload=f"Agent {assigned_agent.name} ({assigned_agent.phone or 'N/A'}) has been assigned to your order."
-    )
-    agent_notif = Notification(
+    ))
+    db.add(Notification(
+        order_id=order.id,
+        recipient=cust_recipient_phone,
+        channel="SMS",
+        status="SENT",
+        subject=f"Agent Assigned: {order.tracking_number}",
+        payload=f"Agent {assigned_agent.name} has been assigned to your order {order.tracking_number}."
+    ))
+
+    # Agent Email & SMS Notifications on Assignment
+    db.add(Notification(
         order_id=order.id,
         recipient=assigned_agent.email,
-        channel="SMS",
+        channel="EMAIL",
         status="SENT",
         subject=f"New Delivery Order Assigned: {order.tracking_number}",
         payload=f"You have been assigned order {order.tracking_number}. Pickup address: {order.pickup_address}"
-    )
-    db.add(cust_notif)
-    db.add(agent_notif)
+    ))
+    db.add(Notification(
+        order_id=order.id,
+        recipient=assigned_agent.phone or assigned_agent.email,
+        channel="SMS",
+        status="SENT",
+        subject=f"New Delivery Order Assigned: {order.tracking_number}",
+        payload=f"New delivery order {order.tracking_number} assigned. Pickup address: {order.pickup_address}"
+    ))
 
     db.commit()
     db.refresh(order)
@@ -273,16 +324,45 @@ def update_order_status(
     )
     db.add(history_log)
 
-    # Trigger Notification
-    cust_notif = Notification(
+    # Customer Email & SMS Notifications on Phase Update
+    cust_recipient_email = order.customer.email if order.customer else "customer@delivery.com"
+    cust_recipient_phone = (order.customer.phone if order.customer and order.customer.phone else cust_recipient_email)
+
+    db.add(Notification(
         order_id=order.id,
-        recipient=order.customer.email if order.customer else "customer@delivery.com",
+        recipient=cust_recipient_email,
         channel="EMAIL",
         status="SENT",
         subject=f"Order Status Update: {order.tracking_number} is now {target_status.value}",
         payload=f"Order {order.tracking_number} status changed to {target_status.value}. Notes: {notes_str}"
-    )
-    db.add(cust_notif)
+    ))
+    db.add(Notification(
+        order_id=order.id,
+        recipient=cust_recipient_phone,
+        channel="SMS",
+        status="SENT",
+        subject=f"Order Status Update: {order.tracking_number}",
+        payload=f"Order {order.tracking_number} status updated to {target_status.value}."
+    ))
+
+    # Agent Email & SMS Notifications on Phase Update
+    if order.agent:
+        db.add(Notification(
+            order_id=order.id,
+            recipient=order.agent.email,
+            channel="EMAIL",
+            status="SENT",
+            subject=f"Assigned Order Update: {order.tracking_number}",
+            payload=f"Order {order.tracking_number} updated to {target_status.value}."
+        ))
+        db.add(Notification(
+            order_id=order.id,
+            recipient=order.agent.phone or order.agent.email,
+            channel="SMS",
+            status="SENT",
+            subject=f"Assigned Order Update: {order.tracking_number}",
+            payload=f"Order {order.tracking_number} updated to {target_status.value}."
+        ))
 
     db.commit()
     db.refresh(order)

@@ -1,0 +1,74 @@
+.timeline-drawer-overlay {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(4px);
+    z-index: 9998;
+}
+
+.timeline-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: 28rem;
+    background-color: var(--card-bg);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+}
+
+.timeline-header {
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--glass-bg);
+}
+
+.timeline-step-icon {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 9999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    z-index: 10;
+}
+
+.timeline-step-active {
+    background-color: var(--primary);
+    color: #ffffff;
+    box-shadow: 0 0 0 4px var(--primary-light);
+}
+
+.timeline-step-done {
+    background-color: #10b981;
+    color: #ffffff;
+}
+
+.timeline-step-pending {
+    background-color: var(--glass-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+
+.timeline-address-box {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border);
+    padding: 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.timeline-address-title {
+    font-weight: 700;
+    color: var(--text-h);
+}

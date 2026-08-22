@@ -37,3 +37,20 @@ export async function getMeApi(token) {
     }
     return response.json();
 }
+
+export async function updateProfileApi(token, profileData) {
+    const response = await fetch(`${API_BASE_URL}/auth/me`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(profileData),
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to update profile');
+    }
+    return response.json();
+}
+

@@ -1,0 +1,49 @@
+.navbar-container {
+    background-color: var(--glass-bg);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    position: sticky;
+    top: 0;
+    z-index: 40;
+}
+
+.navbar-brand-title {
+    color: var(--text-h) !important;
+    font-weight: 800;
+}
+
+.navbar-user-badge {
+    background-color: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text-h) !important;
+}
+
+.navbar-icon-btn {
+    color: var(--text-h) !important;
+    background-color: var(--input-bg);
+    border: 1px solid var(--border);
+}
+
+.navbar-icon-btn:hover {
+    color: var(--primary) !important;
+    background-color: var(--primary-light) !important;
+}
+
+.role-badge-admin {
+    background-color: var(--accent-bg);
+    color: var(--accent) !important;
+    border: 1px solid var(--accent-border);
+}
+
+.role-badge-agent {
+    background-color: var(--status-transit-bg);
+    color: var(--status-transit-text) !important;
+    border: 1px solid var(--status-transit-border);
+}
+
+.role-badge-customer {
+    background-color: var(--status-delivered-bg);
+    color: var(--status-delivered-text) !important;
+    border: 1px solid var(--status-delivered-border);
+}

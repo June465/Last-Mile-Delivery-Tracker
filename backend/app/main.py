@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.database import engine, Base
 from app.seed import seed_db
-from app.routers import auth, users, zones, rates, orders
+from app.routers import auth, users, zones, rates, orders, notifications
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -28,6 +28,7 @@ app.include_router(users.router, prefix=settings.API_V1_STR)
 app.include_router(zones.router, prefix=settings.API_V1_STR)
 app.include_router(rates.router, prefix=settings.API_V1_STR)
 app.include_router(orders.router, prefix=settings.API_V1_STR)
+app.include_router(notifications.router, prefix=settings.API_V1_STR)
 
 @app.on_event("startup")
 def on_startup():

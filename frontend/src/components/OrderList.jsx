@@ -1,165 +1,249 @@
 import React, { useState } from 'react';
+import './OrderList.css';
 import { useAuth } from '../context/AuthContext';
-import { AgentAssignmentModal } from './AgentAssignmentModal';
+import { Package, Search, UserCheck, Activity, UserPlus, Clock, CheckCircle } from 'lucide-react';
 import { LiveTrackingTimeline } from './LiveTrackingTimeline';
-import { Package, MapPin, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
+import { AgentAssignmentModal } from './AgentAssignmentModal';
+import { RescheduleModal } from './RescheduleModal';
+import { assignAgentApi } from '../api/ordersApi';
 
-export function OrderList({ orders, loading, onRefresh }) {
-    const { user } = useAuth();
-    const [selectedOrderForAssign, setSelectedOrderForAssign] = useState(null);
-    const [expandedOrderId, setExpandedOrderId] = useState(null);
+export function OrderList({ orders, userRole, user, loading, onRefresh }) {
+    const { token } = useAuth();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('');
+    const [selectedOrderTracking, setSelectedOrderTracking] = useState(null);
+    const [selectedOrderAssign, setSelectedOrderAssign] = useState(null);
+    const [selectedOrderReschedule, setSelectedOrderReschedule] = useState(null);
+    const [acceptingId, setAcceptingId] = useState(null);
 
-    const toggleExpandOrder = (orderId) => {
-        setExpandedOrderId(expandedOrderId === orderId ? null : orderId);
-    };
-
-    const getStatusBadge = (status) => {
+    const getStatusBadgeClass = (status) => {
         switch (status) {
-            case 'CREATED':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-blue-100 text-blue-800 rounded-full">CREATED</span>;
-            case 'AGENT_ASSIGNED':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-indigo-100 text-indigo-800 rounded-full">AGENT ASSIGNED</span>;
-            case 'PICKED_UP':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-amber-100 text-amber-800 rounded-full">PICKED UP</span>;
-            case 'IN_TRANSIT':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-purple-100 text-purple-800 rounded-full">IN TRANSIT</span>;
-            case 'OUT_FOR_DELIVERY':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-cyan-100 text-cyan-800 rounded-full">OUT FOR DELIVERY</span>;
-            case 'DELIVERED':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-emerald-100 text-emerald-800 rounded-full">DELIVERED</span>;
-            case 'FAILED':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-rose-100 text-rose-800 rounded-full">FAILED</span>;
-            case 'RESCHEDULED':
-                return <span className="px-2.5 py-1 text-xs font-bold bg-orange-100 text-orange-800 rounded-full">RESCHEDULED</span>;
-            default:
-                return <span className="px-2.5 py-1 text-xs font-bold bg-gray-100 text-gray-800 rounded-full">{status}</span>;
+            case 'CREATED': return 'status-badge-created';
+            case 'ASSIGNED': case 'PICKED_UP': return 'status-badge-assigned';
+            case 'IN_TRANSIT': case 'OUT_FOR_DELIVERY': return 'status-badge-transit';
+            case 'DELIVERED': return 'status-badge-delivered';
+            case 'FAILED': return 'status-badge-failed';
+            default: return 'bg-slate-800 text-slate-200 border-slate-700';
         }
     };
 
-    if (loading) {
-        return (
-            <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-3"></div>
-                <p className="text-sm text-gray-500 font-medium">Loading orders...</p>
-            </div>
-        );
-    }
+    const handleAcceptOrder = async (orderId) => {
+        setAcceptingId(orderId);
+        try {
+            await assignAgentApi(token, orderId, {});
+            if (onRefresh) onRefresh();
+        } catch (err) {
+            alert(err.message || 'Failed to accept order');
+        } finally {
+            setAcceptingId(null);
+        }
+    };
 
-    if (orders.length === 0) {
-        return (
-            <div className="bg-white p-12 rounded-2xl border border-gray-100 text-center">
-                <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <h3 className="text-base font-bold text-gray-800">No Orders Found</h3>
-                <p className="text-sm text-gray-500">No active delivery orders placed yet.</p>
-            </div>
-        );
-    }
+    const filteredOrders = orders.filter(order => {
+        const matchesSearch =
+            order.tracking_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.pickup_address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            order.drop_address.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesStatus = statusFilter ? order.current_status === statusFilter : true;
+        return matchesSearch && matchesStatus;
+    });
 
     return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h3 className="font-bold text-gray-900 text-lg">Active Orders ({orders.length})</h3>
-                <button
-                    onClick={onRefresh}
-                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
-                >
-                    Refresh List
-                </button>
+        <div className="order-list-card">
+            {/* Header & Controls */}
+            <div className="p-5 border-b border-slate-700/60 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h3 className="text-lg font-bold order-cell-title flex items-center gap-2">
+                        <Package className="h-5 w-5 text-indigo-400" />
+                        Shipments & Orders
+                    </h3>
+                    <p className="text-xs font-semibold order-cell-muted">View live status, assigned agents, and tracking timelines</p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                    <div className="relative">
+                        <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5" />
+                        <input
+                            type="text"
+                            placeholder="Search tracking or address..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="pl-9 pr-3 py-1.5 border rounded-lg text-sm order-filter-input w-64"
+                        />
+                    </div>
+
+                    <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className="px-3 py-1.5 border rounded-lg text-sm order-filter-input font-medium"
+                    >
+                        <option value="">All Statuses</option>
+                        <option value="CREATED">CREATED</option>
+                        <option value="ASSIGNED">ASSIGNED</option>
+                        <option value="PICKED_UP">PICKED_UP</option>
+                        <option value="IN_TRANSIT">IN_TRANSIT</option>
+                        <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY</option>
+                        <option value="DELIVERED">DELIVERED</option>
+                        <option value="FAILED">FAILED</option>
+                    </select>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
-                {orders.map((order) => {
-                    const isExpanded = expandedOrderId === order.id;
-
-                    return (
-                        <div key={order.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden transition-all">
-                            <div className="p-5 space-y-4">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
-                                    <div className="flex items-center space-x-3">
-                                        <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl">
-                                            <Package className="h-5 w-5" />
-                                        </div>
-                                        <div>
-                                            <span className="font-mono text-sm font-bold text-indigo-900">{order.tracking_number}</span>
-                                            <p className="text-xs text-gray-400">
-                                                Placed on {new Date(order.created_at).toLocaleString()}
-                                            </p>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center space-x-3">
-                                        <span className="px-2 py-0.5 text-xs font-semibold bg-gray-100 text-gray-700 rounded-md">
+            {/* Table */}
+            <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                    <thead>
+                        <tr className="order-table-header border-b border-slate-700/60">
+                            <th className="py-3 px-4">Tracking #</th>
+                            <th className="py-3 px-4">Type</th>
+                            <th className="py-3 px-4">Route</th>
+                            <th className="py-3 px-4">Cost</th>
+                            <th className="py-3 px-4">Agent</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/80 text-sm">
+                        {filteredOrders.length === 0 ? (
+                            <tr>
+                                <td colSpan="7" className="py-8 text-center order-cell-muted font-semibold">
+                                    No shipments match the given search criteria.
+                                </td>
+                            </tr>
+                        ) : (
+                            filteredOrders.map(order => (
+                                <tr key={order.id} className="hover:bg-[var(--glass-bg)] transition-colors border-b border-[var(--border)]">
+                                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-500">
+                                        {order.tracking_number}
+                                    </td>
+                                    <td className="py-3.5 px-4 font-semibold">
+                                        <span className="order-pill-type inline-block px-2 py-0.5 rounded text-xs">
                                             {order.order_type} ({order.payment_type})
                                         </span>
-                                        {getStatusBadge(order.current_status)}
-                                    </div>
-                                </div>
+                                    </td>
+                                    <td className="py-3.5 px-4 text-xs font-medium space-y-0.5">
+                                        <div><strong className="order-cell-title">From:</strong> <span className="order-cell-muted">{order.pickup_address}</span></div>
+                                        <div><strong className="order-cell-title">To:</strong> <span className="order-cell-muted">{order.drop_address}</span></div>
+                                    </td>
+                                    <td className="py-3.5 px-4 order-cell-bold text-base">
+                                        ₹{order.total_charge}
+                                    </td>
+                                    <td className="py-3.5 px-4">
+                                        {order.agent ? (
+                                            <div className="flex items-center gap-1.5 text-xs order-cell-title">
+                                                <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                                {order.agent.name}
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs order-pill-unassigned font-bold px-2.5 py-1 rounded">
+                                                Unassigned
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="py-3.5 px-4">
+                                        <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-extrabold tracking-wide uppercase ${getStatusBadgeClass(order.current_status)}`}>
+                                            {order.current_status}
+                                        </span>
+                                    </td>
+                                    <td className="py-3.5 px-4 text-right space-x-2">
+                                        <button
+                                            onClick={() => setSelectedOrderTracking(order)}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-300 bg-indigo-950/60 hover:bg-indigo-900/60 rounded-lg border border-indigo-500/40 transition-colors cursor-pointer"
+                                            title="Live Tracking Timeline"
+                                        >
+                                            <Activity className="h-3.5 w-3.5" /> Track
+                                        </button>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                                    <div className="space-y-1">
-                                        <p className="font-bold text-gray-700 flex items-center space-x-1">
-                                            <MapPin className="h-3.5 w-3.5 text-emerald-600 inline" />
-                                            <span>Pickup: {order.pickup_area?.name} ({order.pickup_area?.pincode})</span>
-                                        </p>
-                                        <p className="text-gray-500 pl-5">{order.pickup_address}</p>
-                                    </div>
-
-                                    <div className="space-y-1">
-                                        <p className="font-bold text-gray-700 flex items-center space-x-1">
-                                            <MapPin className="h-3.5 w-3.5 text-rose-600 inline" />
-                                            <span>Drop: {order.drop_area?.name} ({order.drop_area?.pincode})</span>
-                                        </p>
-                                        <p className="text-gray-500 pl-5">{order.drop_address}</p>
-                                    </div>
-                                </div>
-
-                                <div className="pt-3 border-t border-gray-100 flex flex-wrap items-center justify-between text-xs text-gray-600 gap-2">
-                                    <div className="flex items-center space-x-4">
-                                        <span>Agent: {order.agent ? <strong className="text-gray-900">{order.agent.name}</strong> : <span className="text-amber-600 font-bold">Unassigned</span>}</span>
-                                        <span>Billing Weight: <strong className="text-gray-900">{order.billing_weight} kg</strong></span>
-                                    </div>
-
-                                    <div className="flex items-center space-x-3">
-                                        {order.current_status === 'CREATED' && (user.role === 'ADMIN' || user.role === 'DELIVERY_AGENT') && (
+                                        {/* Assign button - ONLY for ADMIN */}
+                                        {userRole === 'ADMIN' && (
                                             <button
-                                                onClick={() => setSelectedOrderForAssign(order)}
-                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs shadow-sm transition-colors flex items-center space-x-1"
+                                                onClick={() => setSelectedOrderAssign(order)}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-purple-300 bg-purple-950/60 hover:bg-purple-900/60 rounded-lg border border-purple-500/40 transition-colors cursor-pointer"
+                                                title="Assign Agent"
                                             >
-                                                <UserCheck className="h-3.5 w-3.5" />
-                                                <span>Assign Agent</span>
+                                                <UserPlus className="h-3.5 w-3.5" /> Assign
                                             </button>
                                         )}
 
-                                        <button
-                                            onClick={() => toggleExpandOrder(order.id)}
-                                            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-bold text-xs transition-colors flex items-center space-x-1"
-                                        >
-                                            <span>{isExpanded ? 'Hide Tracking' : 'Track Order'}</span>
-                                            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                                        </button>
+                                        {/* Agent Accept button - ONLY for DELIVERY_AGENT on unassigned orders in pickup zone */}
+                                        {(userRole === 'DELIVERY_AGENT' || userRole === 'AGENT') && !order.agent && (!order.agent_id || order.agent_id === null) && order.current_status === 'CREATED' && (() => {
+                                            const agentZoneId = user?.agent_location?.zone_id || user?.assigned_zone_id || user?.zone_id;
+                                            const pickupZoneId = order.pickup_area?.zone_id || order.pickup_area?.zone?.id;
+                                            const isZoneMatch = !agentZoneId || !pickupZoneId || (agentZoneId === pickupZoneId);
 
-                                        <span className="text-base font-black text-gray-900">₹{order.total_charge}</span>
-                                    </div>
-                                </div>
-                            </div>
+                                            if (isZoneMatch) {
+                                                return (
+                                                    <button
+                                                        onClick={() => handleAcceptOrder(order.id)}
+                                                        disabled={acceptingId === order.id}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-300 bg-emerald-950/60 hover:bg-emerald-900/60 rounded-lg border border-emerald-500/40 transition-colors cursor-pointer disabled:opacity-50"
+                                                        title="Accept Order for Delivery"
+                                                    >
+                                                        <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
+                                                        {acceptingId === order.id ? 'Accepting...' : 'Accept'}
+                                                    </button>
+                                                );
+                                            } else {
+                                                return (
+                                                    <span className="inline-block text-[11px] font-semibold text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded border border-slate-700/60" title="Pickup zone differs from your assigned zone">
+                                                        Outside Zone
+                                                    </span>
+                                                );
+                                            }
+                                        })()}
 
-                            {/* Expandable Live Tracking Timeline Drawer */}
-                            {isExpanded && (
-                                <div className="border-t border-gray-200 p-5 bg-gray-50/50">
-                                    <LiveTrackingTimeline order={order} onStatusUpdated={onRefresh} />
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
+                                        {/* Reschedule button */}
+                                        {order.current_status === 'FAILED' && (
+                                            <button
+                                                onClick={() => setSelectedOrderReschedule(order)}
+                                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-amber-300 bg-amber-950/60 hover:bg-amber-900/60 rounded-lg border border-amber-500/40 transition-colors cursor-pointer"
+                                                title="Reschedule Delivery"
+                                            >
+                                                <Clock className="h-3.5 w-3.5" /> Reschedule
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </div>
 
-            <AgentAssignmentModal
-                isOpen={!!selectedOrderForAssign}
-                onClose={() => setSelectedOrderForAssign(null)}
-                order={selectedOrderForAssign}
-                onAssigned={onRefresh}
-            />
+            {/* Tracking Modal Drawer */}
+            {selectedOrderTracking && (
+                <LiveTrackingTimeline
+                    order={selectedOrderTracking}
+                    onClose={() => {
+                        setSelectedOrderTracking(null);
+                        onRefresh();
+                    }}
+                />
+            )}
+
+            {/* Assign Agent Modal */}
+            {selectedOrderAssign && (
+                <AgentAssignmentModal
+                    order={selectedOrderAssign}
+                    isOpen={true}
+                    onClose={() => {
+                        setSelectedOrderAssign(null);
+                        onRefresh();
+                    }}
+                />
+            )}
+
+            {/* Reschedule Delivery Modal */}
+            {selectedOrderReschedule && (
+                <RescheduleModal
+                    order={selectedOrderReschedule}
+                    isOpen={true}
+                    onClose={() => {
+                        setSelectedOrderReschedule(null);
+                        onRefresh();
+                    }}
+                />
+            )}
         </div>
     );
 }

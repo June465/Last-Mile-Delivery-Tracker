@@ -1,249 +1,190 @@
 import React, { useState, useEffect } from 'react';
+import './ZoneManagement.css';
 import { useAuth } from '../context/AuthContext';
-import { fetchZonesApi, createZoneApi, addAreaApi, deleteZoneApi, deleteAreaApi } from '../api/zoneRateApi';
-import { MapPin, Plus, Trash2, Map, Tag } from 'lucide-react';
+import { Map, Plus, MapPin, Layers } from 'lucide-react';
+import { fetchZonesApi, createZoneApi, addAreaApi } from '../api/zoneRateApi';
 
 export function ZoneManagement() {
     const { token } = useAuth();
     const [zones, setZones] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [zoneName, setZoneName] = useState('');
+    const [zoneCode, setZoneCode] = useState('');
+    const [selectedZoneId, setSelectedZoneId] = useState('');
+    const [areaName, setAreaName] = useState('');
+    const [pincode, setPincode] = useState('');
     const [error, setError] = useState('');
 
-    // New Zone form
-    const [newZoneName, setNewZoneName] = useState('');
-    const [newZoneCode, setNewZoneCode] = useState('');
-    const [newZoneDesc, setNewZoneDesc] = useState('');
-
-    // New Area form
-    const [selectedZoneId, setSelectedZoneId] = useState('');
-    const [newAreaName, setNewAreaName] = useState('');
-    const [newPincode, setNewPincode] = useState('');
+    const loadZones = async () => {
+        try {
+            const data = await fetchZonesApi();
+            setZones(data);
+            if (data.length > 0 && !selectedZoneId) {
+                setSelectedZoneId(data[0].id.toString());
+            }
+        } catch (err) {
+            console.error('Failed to load zones:', err);
+        }
+    };
 
     useEffect(() => {
         loadZones();
     }, []);
 
-    const loadZones = async () => {
-        try {
-            setLoading(true);
-            const data = await fetchZonesApi();
-            setZones(data);
-            if (data.length > 0 && !selectedZoneId) {
-                setSelectedZoneId(data[0].id);
-            }
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const handleCreateZone = async (e) => {
         e.preventDefault();
+        setError('');
         try {
-            await createZoneApi(token, newZoneName, newZoneCode, newZoneDesc);
-            setNewZoneName('');
-            setNewZoneCode('');
-            setNewZoneDesc('');
+            await createZoneApi(token, zoneName, zoneCode);
+            setZoneName('');
+            setZoneCode('');
             loadZones();
         } catch (err) {
-            alert(err.message);
+            setError(err.message || 'Failed to create zone');
         }
     };
 
-    const handleAddArea = async (e) => {
+    const handleCreateArea = async (e) => {
         e.preventDefault();
         if (!selectedZoneId) return;
+        setError('');
         try {
-            await addAreaApi(token, Number(selectedZoneId), newAreaName, newPincode);
-            setNewAreaName('');
-            setNewPincode('');
+            await addAreaApi(token, parseInt(selectedZoneId), areaName, pincode);
+            setAreaName('');
+            setPincode('');
             loadZones();
         } catch (err) {
-            alert(err.message);
+            setError(err.message || 'Failed to create area');
         }
     };
-
-    const handleDeleteZone = async (zoneId) => {
-        if (!window.confirm('Are you sure you want to delete this zone? All associated areas will be deleted.')) return;
-        try {
-            await deleteZoneApi(token, zoneId);
-            loadZones();
-        } catch (err) {
-            alert(err.message);
-        }
-    };
-
-    const handleDeleteArea = async (areaId) => {
-        if (!window.confirm('Delete this area?')) return;
-        try {
-            await deleteAreaApi(token, areaId);
-            loadZones();
-        } catch (err) {
-            alert(err.message);
-        }
-    };
-
-    if (loading) {
-        return <div className="p-8 text-center text-gray-500">Loading Zones & Areas...</div>;
-    }
 
     return (
-        <div className="space-y-8">
-            {error && <div className="p-4 bg-red-50 text-red-700 rounded-lg text-sm">{error}</div>}
+        <div className="space-y-6">
+            <div>
+                <h2 className="text-2xl font-extrabold zone-label tracking-tight flex items-center gap-2">
+                    <Map className="h-6 w-6 text-indigo-400" />
+                    Delivery Zone & Area Topology
+                </h2>
+                <p className="text-sm font-semibold zone-subheading">Configure logistics coverage hubs and postal pincode boundaries</p>
+            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                {/* Create Zone Form */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-4">
-                        <Map className="h-5 w-5 text-indigo-600" />
-                        <h3 className="font-bold text-gray-900 text-lg">Create New Delivery Zone</h3>
-                    </div>
-                    <form onSubmit={handleCreateZone} className="space-y-4">
+            {error && (
+                <div className="bg-red-950/40 border border-red-500/40 text-red-300 text-sm p-3 rounded-lg font-bold">
+                    {error}
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="zone-management-card space-y-4">
+                    <h3 className="text-lg font-bold zone-label flex items-center gap-2">
+                        <Layers className="h-5 w-5 text-indigo-400" />
+                        Create Logistics Hub (Zone)
+                    </h3>
+                    <form onSubmit={handleCreateZone} className="space-y-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Zone Name</label>
+                            <label className="block text-xs font-bold uppercase zone-label mb-1">Zone Name</label>
                             <input
                                 type="text"
                                 required
-                                placeholder="e.g. North Bengaluru"
-                                value={newZoneName}
-                                onChange={(e) => setNewZoneName(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                placeholder="North Metro Hub"
+                                value={zoneName}
+                                onChange={(e) => setZoneName(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm zone-input"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Zone Code</label>
+                            <label className="block text-xs font-bold uppercase zone-label mb-1">Zone Code</label>
                             <input
                                 type="text"
                                 required
-                                placeholder="e.g. ZONE_BLR_NORTH"
-                                value={newZoneCode}
-                                onChange={(e) => setNewZoneCode(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Description</label>
-                            <textarea
-                                placeholder="Zone coverage description"
-                                value={newZoneDesc}
-                                onChange={(e) => setNewZoneDesc(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
-                                rows={2}
+                                placeholder="Z-NORTH"
+                                value={zoneCode}
+                                onChange={(e) => setZoneCode(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm zone-input"
                             />
                         </div>
                         <button
                             type="submit"
-                            className="w-full py-2 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-1"
+                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg transition-colors cursor-pointer flex items-center justify-center gap-2"
                         >
-                            <Plus className="h-4 w-4" />
-                            <span>Add Zone</span>
+                            <Plus className="h-4 w-4" /> Add Zone Hub
                         </button>
                     </form>
                 </div>
 
-                {/* Add Area Form */}
-                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
-                    <div className="flex items-center space-x-2 mb-4">
-                        <MapPin className="h-5 w-5 text-indigo-600" />
-                        <h3 className="font-bold text-gray-900 text-lg">Add Area to Zone</h3>
-                    </div>
-                    <form onSubmit={handleAddArea} className="space-y-4">
+                <div className="zone-management-card space-y-4">
+                    <h3 className="text-lg font-bold zone-label flex items-center gap-2">
+                        <MapPin className="h-5 w-5 text-indigo-400" />
+                        Add Pincode Area to Hub
+                    </h3>
+                    <form onSubmit={handleCreateArea} className="space-y-3">
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Select Zone</label>
+                            <label className="block text-xs font-bold uppercase zone-label mb-1">Select Target Zone</label>
                             <select
+                                required
                                 value={selectedZoneId}
                                 onChange={(e) => setSelectedZoneId(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                className="w-full px-3 py-2 border rounded-lg text-sm zone-input font-medium"
                             >
-                                {zones.map((z) => (
-                                    <option key={z.id} value={z.id}>
-                                        {z.name} ({z.code})
-                                    </option>
+                                <option value="">Select Zone</option>
+                                {zones.map(z => (
+                                    <option key={z.id} value={z.id}>{z.name} ({z.code})</option>
                                 ))}
                             </select>
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Area Name</label>
+                            <label className="block text-xs font-bold uppercase zone-label mb-1">Area Name</label>
                             <input
                                 type="text"
                                 required
-                                placeholder="e.g. Yelahanka New Town"
-                                value={newAreaName}
-                                onChange={(e) => setNewAreaName(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                placeholder="Indiranagar Sector 4"
+                                value={areaName}
+                                onChange={(e) => setAreaName(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm zone-input"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Pincode</label>
+                            <label className="block text-xs font-bold uppercase zone-label mb-1">Pincode</label>
                             <input
                                 type="text"
                                 required
-                                placeholder="e.g. 560064"
-                                value={newPincode}
-                                onChange={(e) => setNewPincode(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                placeholder="560038"
+                                value={pincode}
+                                onChange={(e) => setPincode(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm zone-input"
                             />
                         </div>
                         <button
                             type="submit"
-                            className="w-full py-2 bg-indigo-600 text-white rounded-lg font-semibold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-1"
+                            disabled={!selectedZoneId}
+                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                         >
-                            <Plus className="h-4 w-4" />
-                            <span>Add Area</span>
+                            <Plus className="h-4 w-4" /> Add Pincode Area
                         </button>
                     </form>
                 </div>
             </div>
 
-            {/* Zone & Area Cards List */}
-            <div className="space-y-4">
-                <h3 className="font-bold text-gray-900 text-xl">Active Delivery Zones & Covered Areas</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {zones.map((zone) => (
-                        <div key={zone.id} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm relative">
-                            <div className="flex justify-between items-start mb-3">
-                                <div>
-                                    <h4 className="font-bold text-lg text-gray-900">{zone.name}</h4>
-                                    <span className="text-xs bg-indigo-50 text-indigo-700 font-mono font-semibold px-2 py-0.5 rounded">
-                                        {zone.code}
-                                    </span>
-                                </div>
-                                <button
-                                    onClick={() => handleDeleteZone(zone.id)}
-                                    className="text-red-400 hover:text-red-600 p-1 transition-colors"
-                                    title="Delete Zone"
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </button>
+            <div className="zone-management-card space-y-4">
+                <h3 className="text-lg font-bold zone-label">Active Zone Network</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {zones.map(z => (
+                        <div key={z.id} className="zone-network-card space-y-2">
+                            <div className="flex items-center justify-between">
+                                <span className="font-bold zone-label">{z.name}</span>
+                                <span className="zone-code-badge">
+                                    {z.code}
+                                </span>
                             </div>
-                            <p className="text-xs text-gray-500 mb-4">{zone.description || 'No description provided'}</p>
-
-                            <div className="border-t border-gray-100 pt-3">
-                                <p className="text-xs font-semibold text-gray-600 uppercase mb-2 flex items-center space-x-1">
-                                    <Tag className="h-3.5 w-3.5 text-gray-400" />
-                                    <span>Covered Areas ({zone.areas ? zone.areas.length : 0})</span>
-                                </p>
-                                <div className="flex flex-wrap gap-2">
-                                    {zone.areas && zone.areas.length > 0 ? (
-                                        zone.areas.map((area) => (
-                                            <span
-                                                key={area.id}
-                                                className="inline-flex items-center space-x-1 bg-gray-50 text-gray-700 text-xs px-2.5 py-1 rounded-full border border-gray-200"
-                                            >
-                                                <span>{area.name} ({area.pincode})</span>
-                                                <button
-                                                    onClick={() => handleDeleteArea(area.id)}
-                                                    className="text-gray-400 hover:text-red-500 ml-1"
-                                                >
-                                                    ×
-                                                </button>
-                                            </span>
-                                        ))
-                                    ) : (
-                                        <span className="text-xs text-gray-400 italic">No areas mapped yet</span>
-                                    )}
-                                </div>
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                                {z.areas && z.areas.length > 0 ? (
+                                    z.areas.map(a => (
+                                        <span key={a.id} className="area-pill text-xs px-2.5 py-1 rounded-md font-semibold">
+                                            {a.name} ({a.pincode})
+                                        </span>
+                                    ))
+                                ) : (
+                                    <span className="text-xs zone-subheading italic">No areas mapped yet</span>
+                                )}
                             </div>
                         </div>
                     ))}

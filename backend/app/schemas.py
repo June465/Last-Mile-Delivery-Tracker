@@ -27,6 +27,12 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class UserProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    password: Optional[str] = None
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

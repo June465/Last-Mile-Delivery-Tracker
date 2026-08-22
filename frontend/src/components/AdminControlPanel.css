@@ -1,0 +1,45 @@
+.admin-panel-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-sm);
+    padding: 1.5rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.admin-panel-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.admin-kpi-icon-indigo {
+    background-color: rgba(99, 102, 241, 0.12);
+    color: #4f46e5;
+}
+
+.admin-kpi-icon-green {
+    background-color: rgba(16, 185, 129, 0.12);
+    color: #059669;
+}
+
+.admin-kpi-icon-purple {
+    background-color: rgba(139, 92, 246, 0.12);
+    color: #7c3aed;
+}
+
+.admin-kpi-icon-amber {
+    background-color: rgba(245, 158, 11, 0.12);
+    color: #d97706;
+}
+
+.admin-kpi-value {
+    color: #0f172a;
+    font-weight: 800;
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+}
+
+.admin-kpi-label {
+    color: #64748b;
+    font-size: 0.875rem;
+    font-weight: 600;
+}

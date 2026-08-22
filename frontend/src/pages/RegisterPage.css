@@ -1,0 +1,35 @@
+.register-page-container {
+    min-height: 100vh;
+    background-color: var(--bg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 3rem 1rem;
+}
+
+.register-heading {
+    color: var(--text-h) !important;
+}
+
+.register-subheading {
+    color: var(--text-muted) !important;
+}
+
+.register-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-lg);
+}
+
+.register-input {
+    color: var(--text-h) !important;
+    background-color: var(--input-bg) !important;
+    border: 1px solid var(--border) !important;
+}
+
+.register-input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px var(--primary-light) !important;
+    outline: none !important;
+}

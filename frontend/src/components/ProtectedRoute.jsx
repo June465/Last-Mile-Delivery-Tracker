@@ -1,4 +1,5 @@
 import React from 'react';
+import './ProtectedRoute.css';
 import { useAuth } from '../context/AuthContext';
 
 export function ProtectedRoute({ allowedRoles, children }) {

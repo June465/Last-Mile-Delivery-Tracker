@@ -1,108 +1,86 @@
 import React, { useState, useEffect } from 'react';
+import './OrderCreationModal.css';
 import { useAuth } from '../context/AuthContext';
-import { fetchZonesApi, previewRateApi } from '../api/zoneRateApi';
+import { X, Package, Calculator, ArrowRight, ShieldAlert } from 'lucide-react';
 import { createOrderApi } from '../api/ordersApi';
-import { X, Package, ArrowRight, CheckCircle2, Truck } from 'lucide-react';
+import { fetchZonesApi, previewRateApi } from '../api/zoneRateApi';
 
-export function OrderCreationModal({ isOpen, onClose, onOrderCreated }) {
-    const { token, user } = useAuth();
+export function OrderCreationModal({ isOpen, onClose, onSuccess }) {
+    const { token } = useAuth();
     const [zones, setZones] = useState([]);
-    const [areas, setAreas] = useState([]);
-    const [loadingZones, setLoadingZones] = useState(true);
-
-    // Form State
     const [pickupAreaId, setPickupAreaId] = useState('');
     const [dropAreaId, setDropAreaId] = useState('');
     const [pickupAddress, setPickupAddress] = useState('');
     const [dropAddress, setDropAddress] = useState('');
-    const [lengthCm, setLengthCm] = useState(30);
-    const [widthCm, setWidthCm] = useState(20);
-    const [heightCm, setHeightCm] = useState(15);
-    const [actualWeightKg, setActualWeightKg] = useState(2.5);
+    const [length, setLength] = useState('10');
+    const [breadth, setBreadth] = useState('10');
+    const [height, setHeight] = useState('10');
+    const [actualWeight, setActualWeight] = useState('1.0');
     const [orderType, setOrderType] = useState('B2C');
     const [paymentType, setPaymentType] = useState('PREPAID');
 
-    // Preview State & Submission
     const [ratePreview, setRatePreview] = useState(null);
+    const [calculating, setCalculating] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
 
     useEffect(() => {
-        if (isOpen) {
-            loadZonesAndAreas();
+        if (isOpen && token) {
+            fetchZonesApi()
+                .then(data => setZones(data))
+                .catch(err => console.error('Failed to fetch zones:', err));
         }
-    }, [isOpen]);
+    }, [isOpen, token]);
 
     useEffect(() => {
-        if (pickupAreaId && dropAreaId) {
-            updateRatePreview();
+        if (pickupAreaId && dropAreaId && length && breadth && height && actualWeight) {
+            handlePreview();
         }
-    }, [pickupAreaId, dropAreaId, lengthCm, widthCm, heightCm, actualWeightKg, orderType, paymentType]);
+    }, [pickupAreaId, dropAreaId, length, breadth, height, actualWeight, orderType, paymentType]);
 
-    const loadZonesAndAreas = async () => {
+    const handlePreview = async () => {
+        setCalculating(true);
+        setError('');
         try {
-            setLoadingZones(true);
-            const data = await fetchZonesApi();
-            setZones(data);
-            const allAreas = data.flatMap((z) => z.areas || []);
-            setAreas(allAreas);
-            if (allAreas.length >= 2) {
-                setPickupAreaId(allAreas[0].id);
-                setDropAreaId(allAreas[1].id);
-            } else if (allAreas.length === 1) {
-                setPickupAreaId(allAreas[0].id);
-                setDropAreaId(allAreas[0].id);
-            }
-        } catch (err) {
-            setError('Failed to load delivery zones');
-        } finally {
-            setLoadingZones(false);
-        }
-    };
-
-    const updateRatePreview = async () => {
-        try {
-            const res = await previewRateApi({
-                pickup_area_id: Number(pickupAreaId),
-                drop_area_id: Number(dropAreaId),
-                dimensions_l: Number(lengthCm),
-                dimensions_b: Number(widthCm),
-                dimensions_h: Number(heightCm),
-                actual_weight: Number(actualWeightKg),
+            const data = await previewRateApi({
+                pickup_area_id: parseInt(pickupAreaId),
+                drop_area_id: parseInt(dropAreaId),
+                dimensions_l: parseFloat(length),
+                dimensions_b: parseFloat(breadth),
+                dimensions_h: parseFloat(height),
+                actual_weight: parseFloat(actualWeight),
                 order_type: orderType,
-                payment_type: paymentType,
+                payment_type: paymentType
             });
-            setRatePreview(res);
+            setRatePreview(data);
         } catch (err) {
-            // Ignore preview errors silently
+            setRatePreview(null);
+        } finally {
+            setCalculating(false);
         }
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!pickupAddress || !dropAddress) {
-            setError('Please provide full pickup and drop addresses');
-            return;
-        }
         setSubmitting(true);
         setError('');
         try {
             await createOrderApi(token, {
-                pickup_area_id: Number(pickupAreaId),
-                drop_area_id: Number(dropAreaId),
+                pickup_area_id: parseInt(pickupAreaId),
+                drop_area_id: parseInt(dropAreaId),
                 pickup_address: pickupAddress,
                 drop_address: dropAddress,
-                dimensions_l: Number(lengthCm),
-                dimensions_b: Number(widthCm),
-                dimensions_h: Number(heightCm),
-                actual_weight: Number(actualWeightKg),
+                dimensions_l: parseFloat(length),
+                dimensions_b: parseFloat(breadth),
+                dimensions_h: parseFloat(height),
+                actual_weight: parseFloat(actualWeight),
                 order_type: orderType,
-                payment_type: paymentType,
+                payment_type: paymentType
             });
-            onOrderCreated();
+            onSuccess();
             onClose();
         } catch (err) {
-            setError(err.message);
+            setError(err.message || 'Failed to create order');
         } finally {
             setSubmitting(false);
         }
@@ -110,240 +88,230 @@ export function OrderCreationModal({ isOpen, onClose, onOrderCreated }) {
 
     if (!isOpen) return null;
 
+    const allAreas = zones.flatMap(z => z.areas || []);
+
     return (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 50, overflowY: 'auto', backgroundColor: 'rgba(17,24,39,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-            <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl overflow-hidden border border-gray-100 animate-in fade-in zoom-in duration-200">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                    <div className="flex items-center space-x-3">
-                        <div className="p-2 bg-indigo-600 text-white rounded-xl">
-                            <Truck className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-gray-900 text-lg">Create New Delivery Order</h3>
-                            <p className="text-xs text-gray-500">Live rate engine automatically calculates billing weight & fees</p>
-                        </div>
+        <div className="order-modal-overlay">
+            <div className="order-modal-card animate-fade-in">
+                <div className="order-modal-header">
+                    <div className="flex items-center gap-2">
+                        <Package className="h-5 w-5 text-indigo-600" />
+                        <h3 className="text-lg font-bold text-slate-900">Create New Shipment</h3>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1.5 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
-                    >
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
                         <X className="h-5 w-5" />
                     </button>
                 </div>
 
-                {error && <div className="mx-6 mt-4 p-3 bg-red-50 text-red-700 rounded-xl text-xs">{error}</div>}
+                <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6">
+                    {error && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg font-semibold flex items-center gap-2">
+                            <ShieldAlert className="h-4 w-4 text-red-600" />
+                            {error}
+                        </div>
+                    )}
 
-                <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                    {/* Left Column: Location & Dimensions */}
-                    <div className="lg:col-span-7 space-y-4">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Pickup Area</label>
-                                <select
-                                    value={pickupAreaId}
-                                    onChange={(e) => setPickupAreaId(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                                >
-                                    {areas.map((a) => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.name} ({a.pincode})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Drop Area</label>
-                                <select
-                                    value={dropAreaId}
-                                    onChange={(e) => setDropAreaId(e.target.value)}
-                                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white"
-                                >
-                                    {areas.map((a) => (
-                                        <option key={a.id} value={a.id}>
-                                            {a.name} ({a.pincode})
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">Pickup Area</label>
+                            <select
+                                required
+                                value={pickupAreaId}
+                                onChange={(e) => setPickupAreaId(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input font-medium"
+                            >
+                                <option value="">Select Pickup Area</option>
+                                {allAreas.map(a => (
+                                    <option key={a.id} value={a.id}>{a.name} ({a.pincode})</option>
+                                ))}
+                            </select>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Pickup Street Address</label>
-                            <textarea
+                            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">Drop Area</label>
+                            <select
                                 required
-                                rows={2}
-                                placeholder="Full street name, building number, landmark"
+                                value={dropAreaId}
+                                onChange={(e) => setDropAreaId(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input font-medium"
+                            >
+                                <option value="">Select Drop Area</option>
+                                {allAreas.map(a => (
+                                    <option key={a.id} value={a.id}>{a.name} ({a.pincode})</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">Pickup Street Address</label>
+                            <input
+                                type="text"
+                                required
                                 value={pickupAddress}
                                 onChange={(e) => setPickupAddress(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                placeholder="123 Warehouse St, Floor 2"
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input"
                             />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">Drop Street Address</label>
+                            <input
+                                type="text"
+                                required
+                                value={dropAddress}
+                                onChange={(e) => setDropAddress(e.target.value)}
+                                placeholder="456 Customer Ave, Apt 4B"
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Length (cm)</label>
+                            <input
+                                type="number"
+                                required
+                                min="1"
+                                value={length}
+                                onChange={(e) => setLength(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Breadth (cm)</label>
+                            <input
+                                type="number"
+                                required
+                                min="1"
+                                value={breadth}
+                                onChange={(e) => setBreadth(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Height (cm)</label>
+                            <input
+                                type="number"
+                                required
+                                min="1"
+                                value={height}
+                                onChange={(e) => setHeight(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-700 mb-1">Weight (kg)</label>
+                            <input
+                                type="number"
+                                required
+                                step="0.1"
+                                min="0.1"
+                                value={actualWeight}
+                                onChange={(e) => setActualWeight(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm order-modal-input"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">Order Category</label>
+                            <div className="flex gap-3">
+                                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-800">
+                                    <input
+                                        type="radio"
+                                        name="orderType"
+                                        value="B2C"
+                                        checked={orderType === 'B2C'}
+                                        onChange={() => setOrderType('B2C')}
+                                    /> B2C Retail
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-800">
+                                    <input
+                                        type="radio"
+                                        name="orderType"
+                                        value="B2B"
+                                        checked={orderType === 'B2B'}
+                                        onChange={() => setOrderType('B2B')}
+                                    /> B2B Commercial
+                                </label>
+                            </div>
                         </div>
 
                         <div>
-                            <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Drop Street Address</label>
-                            <textarea
-                                required
-                                rows={2}
-                                placeholder="Full destination address, recipient contact"
-                                value={dropAddress}
-                                onChange={(e) => setDropAddress(e.target.value)}
-                                className="w-full px-3 py-2 border rounded-lg text-sm"
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-2">
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">L (cm)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    required
-                                    value={lengthCm}
-                                    onChange={(e) => setLengthCm(e.target.value)}
-                                    className="w-full px-2 py-1.5 border rounded-lg text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">W (cm)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    required
-                                    value={widthCm}
-                                    onChange={(e) => setWidthCm(e.target.value)}
-                                    className="w-full px-2 py-1.5 border rounded-lg text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">H (cm)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    required
-                                    value={heightCm}
-                                    onChange={(e) => setHeightCm(e.target.value)}
-                                    className="w-full px-2 py-1.5 border rounded-lg text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Weight (kg)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    required
-                                    value={actualWeightKg}
-                                    onChange={(e) => setActualWeightKg(e.target.value)}
-                                    className="w-full px-2 py-1.5 border rounded-lg text-sm font-semibold"
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Order Type</label>
-                                <div className="flex space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setOrderType('B2C')}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg border ${orderType === 'B2C' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-gray-50 text-gray-700'
-                                            }`}
-                                    >
-                                        B2C Retail
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setOrderType('B2B')}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg border ${orderType === 'B2B' ? 'bg-purple-600 text-white border-purple-600' : 'bg-gray-50 text-gray-700'
-                                            }`}
-                                    >
-                                        B2B Bulk
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Payment Method</label>
-                                <div className="flex space-x-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentType('PREPAID')}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg border ${paymentType === 'PREPAID' ? 'bg-green-600 text-white border-green-600' : 'bg-gray-50 text-gray-700'
-                                            }`}
-                                    >
-                                        Prepaid
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setPaymentType('COD')}
-                                        className={`flex-1 py-1.5 text-xs font-bold rounded-lg border ${paymentType === 'COD' ? 'bg-amber-600 text-white border-amber-600' : 'bg-gray-50 text-gray-700'
-                                            }`}
-                                    >
-                                        COD
-                                    </button>
-                                </div>
+                            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">Payment Method</label>
+                            <div className="flex gap-3">
+                                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-800">
+                                    <input
+                                        type="radio"
+                                        name="paymentType"
+                                        value="PREPAID"
+                                        checked={paymentType === 'PREPAID'}
+                                        onChange={() => setPaymentType('PREPAID')}
+                                    /> Prepaid
+                                </label>
+                                <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-800">
+                                    <input
+                                        type="radio"
+                                        name="paymentType"
+                                        value="COD"
+                                        checked={paymentType === 'COD'}
+                                        onChange={() => setPaymentType('COD')}
+                                    /> Cash On Delivery (COD)
+                                </label>
                             </div>
                         </div>
                     </div>
 
-                    {/* Right Column: Live Rate Breakdown & Submit */}
-                    <div className="lg:col-span-5 bg-gray-50 p-5 rounded-2xl border border-gray-200 flex flex-col justify-between">
-                        <div className="space-y-3">
-                            <h4 className="font-bold text-gray-900 text-sm uppercase tracking-wider flex items-center justify-between">
-                                <span>Rate Breakdown</span>
-                                <span className="text-xs font-normal text-gray-500">Live Auto-Calc</span>
-                            </h4>
-
-                            {ratePreview ? (
-                                <div className="space-y-2 text-xs">
-                                    <div className="p-2.5 bg-white rounded-xl border border-gray-200 space-y-1">
-                                        <div className="flex justify-between font-semibold text-gray-700">
-                                            <span>Route:</span>
-                                            <span className={ratePreview.is_intra_zone ? 'text-green-700' : 'text-orange-700'}>
-                                                {ratePreview.is_intra_zone ? 'Intra-Zone' : 'Inter-Zone'}
-                                            </span>
-                                        </div>
-                                        <div className="flex justify-between text-gray-500">
-                                            <span>Volumetric:</span>
-                                            <span>{ratePreview.volumetric_weight} kg</span>
-                                        </div>
-                                        <div className="flex justify-between text-gray-500">
-                                            <span>Actual:</span>
-                                            <span>{ratePreview.actual_weight} kg</span>
-                                        </div>
-                                        <div className="flex justify-between font-bold text-indigo-700 pt-1 border-t border-gray-100">
-                                            <span>Billing Weight:</span>
-                                            <span>{ratePreview.billing_weight} kg</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-1 text-gray-600 px-1">
-                                        <div className="flex justify-between">
-                                            <span>Base Charge:</span>
-                                            <span>₹{ratePreview.base_charge}</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>COD Surcharge:</span>
-                                            <span>+ ₹{ratePreview.cod_surcharge}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-2 border-t border-gray-300 flex items-center justify-between px-1">
-                                        <span className="font-bold text-gray-900 uppercase">Total Cost</span>
-                                        <span className="text-xl font-black text-gray-900">₹{ratePreview.total_charge}</span>
-                                    </div>
+                    {ratePreview && (
+                        <div className="rate-breakdown-panel space-y-2">
+                            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
+                                    <Calculator className="h-4 w-4 text-indigo-600" />
+                                    Dynamic Rate Breakdown
                                 </div>
-                            ) : (
-                                <p className="text-xs text-gray-400 italic">Calculating rate breakdown...</p>
-                            )}
-                        </div>
+                                <span className="text-xs font-bold text-slate-500">
+                                    {ratePreview.is_intra_zone ? 'Intra-Zone Delivery' : 'Inter-Zone Delivery'}
+                                </span>
+                            </div>
 
+                            <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-slate-700 pt-1">
+                                <div>Actual Wt: <strong>{ratePreview.actual_weight} kg</strong></div>
+                                <div>Volumetric Wt: <strong>{ratePreview.volumetric_weight} kg</strong></div>
+                                <div>Billing Wt: <strong className="text-indigo-600">{ratePreview.billing_weight} kg</strong></div>
+                            </div>
+
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-700 pt-1">
+                                <span>Base Charge (₹{ratePreview.applied_rate_per_kg}/kg): ₹{ratePreview.base_charge}</span>
+                                {ratePreview.cod_surcharge > 0 && (
+                                    <span className="text-amber-700 font-bold">+ COD Surcharge: ₹{ratePreview.cod_surcharge}</span>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-between text-base font-extrabold text-slate-900 pt-2 border-t border-slate-200">
+                                <span>Total Estimated Charge:</span>
+                                <span className="text-indigo-600 text-xl">₹{ratePreview.total_charge}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100 rounded-lg cursor-pointer"
+                        >
+                            Cancel
+                        </button>
                         <button
                             type="submit"
-                            disabled={submitting}
-                            className="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center space-x-2 shadow-sm disabled:opacity-50"
+                            disabled={submitting || !ratePreview}
+                            className="px-5 py-2 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-2"
                         >
-                            <span>{submitting ? 'Placing Order...' : 'Confirm & Place Order'}</span>
+                            {submitting ? 'Creating Shipment...' : 'Confirm & Create Order'}
                             <ArrowRight className="h-4 w-4" />
                         </button>
                     </div>

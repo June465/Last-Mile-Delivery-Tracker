@@ -1,0 +1,84 @@
+.order-list-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+
+.order-cell-title {
+    color: var(--text-h) !important;
+    font-weight: 700;
+}
+
+.order-cell-muted {
+    color: var(--text-muted) !important;
+}
+
+.order-cell-bold {
+    color: var(--text-h) !important;
+    font-weight: 800;
+}
+
+.order-pill-type {
+    background-color: var(--glass-bg);
+    color: var(--text-h);
+    border: 1px solid var(--border);
+}
+
+.order-pill-unassigned {
+    color: #fbbf24 !important;
+    background-color: rgba(245, 158, 11, 0.2) !important;
+    border: 1px solid rgba(245, 158, 11, 0.4) !important;
+}
+
+.order-filter-input {
+    color: var(--text-h) !important;
+    background-color: var(--input-bg) !important;
+    border: 1px solid var(--border) !important;
+}
+
+.order-filter-input:focus {
+    border-color: var(--primary) !important;
+    box-shadow: 0 0 0 3px var(--primary-light) !important;
+    outline: none !important;
+}
+
+.order-table-header {
+    background-color: var(--code-bg);
+    color: var(--text-muted);
+    font-weight: 700;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.status-badge-created {
+    background-color: var(--status-pending-bg);
+    color: var(--status-pending-text);
+    border: 1px solid var(--status-pending-border);
+}
+
+.status-badge-assigned {
+    background-color: var(--status-transit-bg);
+    color: var(--status-transit-text) !important;
+    border: 1px solid var(--status-transit-border);
+}
+
+.status-badge-transit {
+    background-color: var(--status-transit-bg);
+    color: var(--status-transit-text);
+    border: 1px solid var(--status-transit-border);
+}
+
+.status-badge-delivered {
+    background-color: var(--status-delivered-bg);
+    color: var(--status-delivered-text);
+    border: 1px solid var(--status-delivered-border);
+}
+
+.status-badge-failed {
+    background-color: var(--status-cancelled-bg);
+    color: var(--status-cancelled-text);
+    border: 1px solid var(--status-cancelled-border);
+}
