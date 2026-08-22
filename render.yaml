@@ -2,7 +2,7 @@ services:
   # 1. Backend API Web Service
   - type: web
     name: delivery-tracker-backend
-    env: python
+    runtime: python
     buildCommand: pip install -r backend/requirements.txt
     startCommand: python -m uvicorn app.main:app --app-dir backend --host 0.0.0.0 --port $PORT
     envVars:
@@ -14,10 +14,11 @@ services:
         value: sqlite:///./delivery_tracker.db
 
   # 2. Frontend React Static Site
-  - type: static
+  - type: web
     name: delivery-tracker-frontend
+    runtime: static
     buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    staticPublishPath: ./frontend/dist
     routes:
       - type: rewrite
         source: /*
