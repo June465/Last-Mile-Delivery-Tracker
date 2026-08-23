@@ -19,7 +19,7 @@ export function OrderList({ orders, userRole, user, loading, onRefresh }) {
     const getStatusBadgeClass = (status) => {
         switch (status) {
             case 'CREATED': return 'status-badge-created';
-            case 'ASSIGNED': case 'PICKED_UP': return 'status-badge-assigned';
+            case 'AGENT_ASSIGNED': case 'ASSIGNED': case 'PICKED_UP': return 'status-badge-assigned';
             case 'IN_TRANSIT': case 'OUT_FOR_DELIVERY': return 'status-badge-transit';
             case 'DELIVERED': return 'status-badge-delivered';
             case 'FAILED': return 'status-badge-failed';
@@ -79,7 +79,7 @@ export function OrderList({ orders, userRole, user, loading, onRefresh }) {
                     >
                         <option value="">All Statuses</option>
                         <option value="CREATED">CREATED</option>
-                        <option value="ASSIGNED">ASSIGNED</option>
+                        <option value="AGENT_ASSIGNED">AGENT_ASSIGNED</option>
                         <option value="PICKED_UP">PICKED_UP</option>
                         <option value="IN_TRANSIT">IN_TRANSIT</option>
                         <option value="OUT_FOR_DELIVERY">OUT_FOR_DELIVERY</option>

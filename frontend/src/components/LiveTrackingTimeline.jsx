@@ -13,18 +13,21 @@ export function LiveTrackingTimeline({ order, userRole, onClose }) {
 
     const lifecycleSteps = [
         { key: 'CREATED', label: 'Order Created' },
-        { key: 'ASSIGNED', label: 'Agent Assigned' },
+        { key: 'AGENT_ASSIGNED', label: 'Agent Assigned' },
         { key: 'PICKED_UP', label: 'Package Picked Up' },
         { key: 'IN_TRANSIT', label: 'In Transit' },
         { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery' },
         { key: 'DELIVERED', label: 'Delivered' }
     ];
 
-    const currentStepIndex = lifecycleSteps.findIndex(s => s.key === order.current_status);
+    const currentStepIndex = lifecycleSteps.findIndex(
+        s => s.key === order.current_status || (order.current_status === 'RESCHEDULED' && s.key === 'AGENT_ASSIGNED')
+    );
 
     const getNextStatusOptions = (status) => {
         switch (status) {
             case 'CREATED':
+            case 'AGENT_ASSIGNED':
             case 'ASSIGNED':
                 return [{ status: 'PICKED_UP', label: 'Advance to PICKED_UP', bg: 'bg-indigo-950/60 hover:bg-indigo-900/60 text-indigo-300 border-indigo-500/40' }];
             case 'PICKED_UP':
