@@ -6,8 +6,6 @@ __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
-phases/
-SYSTEM_WRITEUP.md
 
 # SQLite Database
 *.db
@@ -34,3 +32,4 @@ Thumbs.db
 # Environment Variables
 .env
 .env.local
+*.zip
