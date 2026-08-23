@@ -9,7 +9,7 @@ def get_token_headers(email: str, password: str):
     token = res.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
-def _create_and_fail_order(customer_headers, admin_headers):
+def _create_and_fail_order(customer_headers, admin_headers, agent_headers):
     """Helper: create order, assign agent, advance to FAILED."""
     zones = client.get("/api/zones").json()
     pickup_area_id = zones[0]["areas"][0]["id"]
@@ -29,9 +29,9 @@ def _create_and_fail_order(customer_headers, admin_headers):
 
     # Assign agent
     client.post(f"/api/orders/{order_id}/assign", headers=admin_headers, json={"auto_assign": True})
-    # Advance: AGENT_ASSIGNED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY -> FAILED
+    # Advance: AGENT_ASSIGNED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY -> FAILED using agent_headers
     for next_status in ["PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "FAILED"]:
-        client.put(f"/api/orders/{order_id}/status", headers=admin_headers, json={
+        client.put(f"/api/orders/{order_id}/status", headers=agent_headers, json={
             "new_status": next_status,
             "notes": f"Transitioning to {next_status}"
         })
@@ -40,8 +40,9 @@ def _create_and_fail_order(customer_headers, admin_headers):
 def test_reschedule_failed_order():
     customer_headers = get_token_headers("customer@delivery.com", "customer123")
     admin_headers = get_token_headers("admin@delivery.com", "admin123")
+    agent_headers = get_token_headers("agent1@delivery.com", "agent123")
 
-    order_id = _create_and_fail_order(customer_headers, admin_headers)
+    order_id = _create_and_fail_order(customer_headers, admin_headers, agent_headers)
 
     # Reschedule as customer
     res = client.put(f"/api/orders/{order_id}/reschedule", headers=customer_headers, json={
@@ -57,8 +58,9 @@ def test_reschedule_failed_order():
 def test_max_reschedule_limit():
     customer_headers = get_token_headers("customer@delivery.com", "customer123")
     admin_headers = get_token_headers("admin@delivery.com", "admin123")
+    agent_headers = get_token_headers("agent1@delivery.com", "agent123")
 
-    order_id = _create_and_fail_order(customer_headers, admin_headers)
+    order_id = _create_and_fail_order(customer_headers, admin_headers, agent_headers)
 
     # Reschedule 3 times (cycling back to FAILED each time)
     for i in range(3):
@@ -68,19 +70,19 @@ def test_max_reschedule_limit():
         })
         # Transition back to FAILED for next attempt (RESCHEDULED -> OUT_FOR_DELIVERY -> FAILED)
         if i < 2:
-            client.put(f"/api/orders/{order_id}/status", headers=admin_headers, json={
+            client.put(f"/api/orders/{order_id}/status", headers=agent_headers, json={
                 "new_status": "OUT_FOR_DELIVERY", "notes": "Re-attempting delivery"
             })
-            client.put(f"/api/orders/{order_id}/status", headers=admin_headers, json={
+            client.put(f"/api/orders/{order_id}/status", headers=agent_headers, json={
                 "new_status": "FAILED", "notes": "Failed again"
             })
 
     # 4th attempt must fail (order is RESCHEDULED, not FAILED, but reschedule_count == 3)
     # First transition back to FAILED
-    client.put(f"/api/orders/{order_id}/status", headers=admin_headers, json={
+    client.put(f"/api/orders/{order_id}/status", headers=agent_headers, json={
         "new_status": "OUT_FOR_DELIVERY", "notes": "Re-attempt"
     })
-    client.put(f"/api/orders/{order_id}/status", headers=admin_headers, json={
+    client.put(f"/api/orders/{order_id}/status", headers=agent_headers, json={
         "new_status": "FAILED", "notes": "Failed again"
     })
 

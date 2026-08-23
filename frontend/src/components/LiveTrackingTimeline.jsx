@@ -139,7 +139,8 @@ export function LiveTrackingTimeline({ order, userRole, onClose }) {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {nextOptions.map((opt) => (
+                                    {/* Operational Lifecycle Updates - ONLY for DELIVERY AGENT */}
+                                    {role === 'DELIVERY_AGENT' && nextOptions.map((opt) => (
                                         <button
                                             key={opt.status}
                                             disabled={updating}
@@ -150,13 +151,21 @@ export function LiveTrackingTimeline({ order, userRole, onClose }) {
                                         </button>
                                     ))}
 
+                                    {/* Admin Notice */}
+                                    {role === 'ADMIN' && (
+                                        <p className="text-xs text-slate-400 font-medium bg-slate-800/60 p-2.5 rounded-lg border border-slate-700/60 mb-2">
+                                            ℹ️ <strong>Admin Control:</strong> Operational lifecycle updates (pickup, transit, delivery) are managed by the Delivery Agent. You may log order failure below.
+                                        </p>
+                                    )}
+
+                                    {/* Order Failure Button - Visible to ADMIN or DELIVERY AGENT */}
                                     {order.current_status !== 'FAILED' && (
                                         <button
                                             disabled={updating}
                                             onClick={() => handleStatusTransition('FAILED')}
                                             className="w-full py-2 bg-red-950/60 hover:bg-red-900/60 text-red-300 text-xs font-bold rounded-lg border border-red-500/40 transition-colors cursor-pointer mt-1"
                                         >
-                                            Mark Delivery FAILED
+                                            Mark Order Failure (FAILED)
                                         </button>
                                     )}
                                 </div>

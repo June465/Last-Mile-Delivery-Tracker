@@ -14,13 +14,13 @@ from app.services.assignment_engine import find_nearest_available_agent
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
 ALLOWED_TRANSITIONS: Dict[OrderStatus, List[OrderStatus]] = {
-    OrderStatus.CREATED: [OrderStatus.AGENT_ASSIGNED],
-    OrderStatus.AGENT_ASSIGNED: [OrderStatus.PICKED_UP, OrderStatus.CREATED],
-    OrderStatus.PICKED_UP: [OrderStatus.IN_TRANSIT],
-    OrderStatus.IN_TRANSIT: [OrderStatus.OUT_FOR_DELIVERY],
+    OrderStatus.CREATED: [OrderStatus.AGENT_ASSIGNED, OrderStatus.FAILED],
+    OrderStatus.AGENT_ASSIGNED: [OrderStatus.PICKED_UP, OrderStatus.CREATED, OrderStatus.FAILED],
+    OrderStatus.PICKED_UP: [OrderStatus.IN_TRANSIT, OrderStatus.FAILED],
+    OrderStatus.IN_TRANSIT: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.FAILED],
     OrderStatus.OUT_FOR_DELIVERY: [OrderStatus.DELIVERED, OrderStatus.FAILED],
     OrderStatus.FAILED: [OrderStatus.RESCHEDULED],
-    OrderStatus.RESCHEDULED: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.AGENT_ASSIGNED],
+    OrderStatus.RESCHEDULED: [OrderStatus.OUT_FOR_DELIVERY, OrderStatus.AGENT_ASSIGNED, OrderStatus.FAILED],
     OrderStatus.DELIVERED: []
 }
 
@@ -195,6 +195,12 @@ def assign_agent_to_order(
     if current_user.role not in [UserRole.ADMIN, UserRole.DELIVERY_AGENT]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only Admin or Delivery Agents can assign orders")
 
+    if order.agent_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Agent is already assigned to this order."
+        )
+
     assigned_agent: Optional[User] = None
 
     if assign_data.auto_assign:
@@ -291,14 +297,21 @@ def update_order_status(
     if not order:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
 
-    # Authorization Check: Admin or Assigned Delivery Agent
-    if current_user.role == UserRole.CUSTOMER:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customers cannot directly change order status")
-    if current_user.role == UserRole.DELIVERY_AGENT and order.agent_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delivery Agent not assigned to this order")
-
     curr_status = order.current_status
     target_status = status_update.new_status
+
+    # Authorization & Status Permission Check:
+    if current_user.role == UserRole.CUSTOMER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Customers cannot directly change order status")
+    if current_user.role == UserRole.ADMIN:
+        if target_status != OrderStatus.FAILED:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admins can only mark order failures (FAILED). Operational updates (pickup, transit, delivery) must be performed by the assigned Delivery Agent."
+            )
+    elif current_user.role == UserRole.DELIVERY_AGENT:
+        if order.agent_id != current_user.id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Delivery Agent not assigned to this order")
 
     # Validate state machine transition
     allowed_next = ALLOWED_TRANSITIONS.get(curr_status, [])

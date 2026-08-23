@@ -154,8 +154,8 @@ export function OrderList({ orders, userRole, user, loading, onRefresh }) {
                                             <Activity className="h-3.5 w-3.5" /> Track
                                         </button>
 
-                                        {/* Assign button - ONLY for ADMIN */}
-                                        {userRole === 'ADMIN' && (
+                                        {/* Assign button - ONLY for ADMIN on UNASSIGNED orders */}
+                                        {userRole === 'ADMIN' && !order.agent && (!order.agent_id || order.agent_id === null) && (
                                             <button
                                                 onClick={() => setSelectedOrderAssign(order)}
                                                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-purple-300 bg-purple-950/60 hover:bg-purple-900/60 rounded-lg border border-purple-500/40 transition-colors cursor-pointer"
