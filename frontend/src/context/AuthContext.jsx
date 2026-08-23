@@ -39,10 +39,10 @@ export function AuthProvider({ children }) {
         }
     };
 
-    const register = async (name, email, phone, password) => {
+    const register = async (name, email, phone, password, role = 'CUSTOMER') => {
         setError('');
         try {
-            await registerApi(name, email, phone, password);
+            await registerApi(name, email, phone, password, role);
             return await login(email, password);
         } catch (err) {
             setError(err.message);

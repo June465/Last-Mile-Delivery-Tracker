@@ -13,11 +13,11 @@ export async function loginApi(email, password) {
     return response.json();
 }
 
-export async function registerApi(name, email, phone, password) {
+export async function registerApi(name, email, phone, password, role = 'CUSTOMER') {
     const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, phone, password }),
+        body: JSON.stringify({ name, email, phone, password, role }),
     });
     if (!response.ok) {
         const err = await response.json();

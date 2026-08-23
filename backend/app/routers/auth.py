@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models import User, UserRole
+from app.models import User, UserRole, AgentLocation
 from app.schemas import UserLogin, UserRegister, UserResponse, Token, UserProfileUpdate
 from app.auth import verify_password, hash_password, create_access_token, get_current_user
 
@@ -29,18 +29,35 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     if existing_user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email is already registered")
 
+    # Only allow CUSTOMER or DELIVERY_AGENT registration (prevent self-registration as ADMIN)
+    requested_role = user_data.role if user_data.role in [UserRole.CUSTOMER, UserRole.DELIVERY_AGENT] else UserRole.CUSTOMER
+
     new_user = User(
         name=user_data.name,
         email=user_data.email,
         phone=user_data.phone,
         hashed_password=hash_password(user_data.password),
-        role=UserRole.CUSTOMER,
+        role=requested_role,
         is_active=True
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+    # Automatically create AgentLocation for new delivery agents
+    if new_user.role == UserRole.DELIVERY_AGENT:
+        agent_loc = AgentLocation(
+            agent_id=new_user.id,
+            zone_id=None,
+            current_lat=12.9716,
+            current_lng=77.5946,
+            is_available=True
+        )
+        db.add(agent_loc)
+        db.commit()
+
     return new_user
+
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
